@@ -33,7 +33,6 @@ export async function POST(request: NextRequest) {
       userId,
       status: 'pending',
       progress: 0,
-      input,
     });
 
     console.log(`✓ [API /jobs/start] Job created: ${job.id}`);
