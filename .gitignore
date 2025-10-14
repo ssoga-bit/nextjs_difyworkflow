@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# data storage
+/data
+
+# nested directory (ignore)
+/dify-app
