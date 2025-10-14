@@ -9,12 +9,12 @@ interface JobStatus {
   type: string;
   status: string;
   progress: number;
-  result?: any;
+  result?: unknown;
   errorMessage?: string;
   streamingLogs?: Array<{
     timestamp: string;
     event: string;
-    data?: any;
+    data?: unknown;
   }>;
   createdAt: string;
   updatedAt: string;
