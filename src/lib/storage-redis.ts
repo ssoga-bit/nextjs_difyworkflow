@@ -245,10 +245,11 @@ export async function cleanupOldJobs(daysOld: number = 7): Promise<number> {
     console.log(`🧹 [REDIS STORAGE] Cleaning up jobs older than ${daysOld} days...`);
     
     // 古いジョブIDを取得
-    const oldJobIds = await redis.zrangebyscore<string[]>(
+    const oldJobIds = await redis.zrange<string[]>(
       JOBS_INDEX_KEY, 
-      0, 
-      cutoffTime
+      0,
+      cutoffTime,
+      { byScore: true }
     );
     
     if (oldJobIds.length === 0) {

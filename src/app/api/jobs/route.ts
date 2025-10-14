@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAllJobs } from '@/lib/storage';
+import { getAllJobs } from '@/lib/storage-postgres-std';
 
 export async function GET(request: NextRequest) {
   try {

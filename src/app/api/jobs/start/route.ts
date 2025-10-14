@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createJob } from '@/lib/storage';
+import { createJob } from '@/lib/storage-postgres-std';
 import { processJob } from '@/lib/job-processor';
 
 export async function POST(request: NextRequest) {

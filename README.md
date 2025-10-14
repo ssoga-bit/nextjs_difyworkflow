@@ -5,10 +5,11 @@ Next.js アプリケーション - Dify の長時間実行ワークフローに�
 ## ✨ 特徴
 
 - ✅ **長時間ワークフロー対応** - 1時間以上のタスクも安定して実行
-- ✅ **リアルタイムログ表示** - Server-Sent Events (SSE) によるライブ更新
+- ✅ **ログ表示** - ポーリング方式（5秒更新）でログを表示
 - ✅ **ブラウザ再接続対応** - 実行中にブラウザを閉じても処理継続、再接続時に状態復元
 - ✅ **堅牢なエラーハンドリング** - リトライ機構とエラーログの詳細表示
 - ✅ **ファイル破損防止** - アトミック書き込みと書き込みキューシステム
+- ✅ **Vercelデプロイ対応** - ポーリング方式で実行時間制限をクリア
 - ✅ **モダンUI** - Tailwind CSS によるレスポンシブデザイン
 
 ## 🏗️ 技術スタック
@@ -17,7 +18,7 @@ Next.js アプリケーション - Dify の長時間実行ワークフローに�
 - **言語:** TypeScript
 - **スタイリング:** Tailwind CSS
 - **API統合:** Dify API (Chat, Workflow, Completion)
-- **リアルタイム通信:** Server-Sent Events (SSE)
+- **更新方式:** ポーリング（5秒間隔）- Vercelデプロイ対応
 - **ストレージ:** ローカルファイル（本番環境ではRedis/PostgreSQL推奨）
 
 ## 📋 前提条件
@@ -202,8 +203,9 @@ npm run lint
 - ✅ ファイル破損ゼロ（書き込みキュー実装）
 
 ### Vercel 環境
-- ⚠️ 実行時間制限あり（Hobby: 10秒、Pro: 5分）
-- ✅ バックグラウンドジョブシステム推奨（QStash等）
+- ✅ ポーリング方式で実行時間制限をクリア（各リクエスト<1秒）
+- ✅ Hobby/Proプランどちらでも動作
+- ⚠️ データベース移行が必要（Upstash Redis推奨）
 
 ## 🐛 トラブルシューティング
 
@@ -228,14 +230,14 @@ Error: Request failed with status code 504
 - Dify ワークフローの実行時間を確認
 - ネットワーク接続を確認
 
-### SSE 接続エラー
+### ポーリングが停止する
 
-```
-EventSource readyState: 0
-```
+**症状:**
+- ログが更新されない
+- ジョブがprocessingのまま
 
 **解決策:**
-- ブラウザをリフレッシュ
+- ブラウザをリフレッシュ（F5）
 - `localStorage.clear()` を実行
 - サーバーを再起動
 
@@ -243,8 +245,9 @@ EventSource readyState: 0
 
 - [Dify Documentation](https://docs.dify.ai/)
 - [Next.js App Router](https://nextjs.org/docs/app)
-- [Server-Sent Events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events)
+- [Next.js Data Fetching](https://nextjs.org/docs/app/building-your-application/data-fetching)
 - [Vercel Documentation](https://vercel.com/docs)
+- [Vercel関数の制限](https://vercel.com/docs/functions/serverless-functions/runtimes#max-duration)
 - [Upstash Redis](https://upstash.com/docs/redis)
 
 ## 🤝 コントリビューション

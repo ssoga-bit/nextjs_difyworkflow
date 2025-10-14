@@ -1,5 +1,17 @@
+/**
+ * SSE (Server-Sent Events) API - 現在未使用
+ * 
+ * ポーリング方式に変更されたため、このエンドポイントは現在使用されていません。
+ * 将来的にリアルタイム性を向上させる場合の参考として残しています。
+ * 
+ * Vercelデプロイ時の制限:
+ * - Hobby: 最大10秒
+ * - Pro: 最大300秒（5分）
+ * 長時間ワークフローにはポーリングまたはWebhookを推奨
+ */
+
 import { NextRequest } from 'next/server';
-import { getJob } from '@/lib/storage';
+import { getJob } from '@/lib/storage-postgres-std';
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;

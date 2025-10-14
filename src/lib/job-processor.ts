@@ -1,5 +1,5 @@
 import { difyClient } from './dify-client';
-import { updateJob } from './storage';
+import { updateJob } from './storage-postgres-std';
 
 // アクティブなジョブを管理するMap
 const activeJobs = new Map<string, Promise<void>>();

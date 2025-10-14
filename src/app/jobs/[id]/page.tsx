@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import React from 'react';
 
@@ -36,134 +36,106 @@ export default function JobDetailPage() {
   useEffect(() => {
     if (!jobId) return;
 
-    // 初回ロード: REST APIでジョブの現在の状態を取得（ストリーミングログを含む）
-    const fetchInitialJobState = async () => {
+    let pollCount = 0;
+    let isPolling = true;
+
+    // ポーリング: 5秒ごとにジョブステータスを取得
+    const fetchJobStatus = async () => {
+      if (!isPolling) return;
+
       try {
-        console.log('='.repeat(60));
-        console.log(`🔍 [CLIENT] Fetching initial job state`);
-        console.log(`   Job ID: ${jobId}`);
+        pollCount++;
+        
+        // 10回ごとにログ出力
+        if (pollCount === 1 || pollCount % 10 === 0) {
+          console.log('='.repeat(60));
+          console.log(`🔄 [CLIENT POLLING] Fetch #${pollCount}`);
+          console.log(`   Job ID: ${jobId}`);
+        }
         
         const response = await fetch(`/api/jobs/${jobId}`);
-        console.log(`   Response status: ${response.status}`);
+        
+        if (!response.ok) {
+          if (response.status === 404) {
+            // ジョブが見つからない（作成中の可能性）
+            if (pollCount === 1 || pollCount % 10 === 0) {
+              console.log(`⏳ [CLIENT] Job not found yet, will retry...`);
+              console.log('='.repeat(60));
+            }
+            setLoading(false);
+            return;
+          }
+          throw new Error(`HTTP ${response.status}`);
+        }
         
         const jobData = await response.json();
         
         if (jobData.error) {
-          // ジョブが見つからない場合は、SSEで状態を取得する
-          // （ジョブ作成中の可能性があるため、エラーとして扱わない）
-          console.log(`⏳ [CLIENT] Job not found yet (${jobId}). Waiting for SSE updates...`);
-          console.log('='.repeat(60));
+          console.error(`❌ [CLIENT] Error: ${jobData.error}`);
+          setError(jobData.error);
+          isPolling = false;
           return;
         }
 
-        // 初期状態をセット（保存されているログも含む）
-        setJob(jobData);
+        // ジョブ状態を更新
+        setJob({
+          id: jobId,
+          type: jobData.type || 'workflow',
+          createdAt: jobData.createdAt || new Date().toISOString(),
+          ...jobData,
+        });
+
         setLoading(false);
-        
-        console.log(`✅ [CLIENT] Initial job state loaded`);
-        console.log(`   Status: ${jobData.status}`);
-        console.log(`   Progress: ${jobData.progress}%`);
-        console.log(`   Streaming logs: ${jobData.streamingLogs?.length || 0} events`);
-        console.log('='.repeat(60));
+
+        // 10回ごとまたは完了時にログ出力
+        if (pollCount === 1 || pollCount % 10 === 0 || jobData.status === 'completed' || jobData.status === 'failed') {
+          console.log(`📥 [CLIENT] Job state updated`);
+          console.log(`   Status: ${jobData.status}, Progress: ${jobData.progress}%`);
+          console.log(`   Streaming logs: ${jobData.streamingLogs?.length || 0} events`);
+          console.log('='.repeat(60));
+        }
+
+        // 完了したらポーリング停止
+        if (jobData.status === 'completed' || jobData.status === 'failed') {
+          console.log('='.repeat(60));
+          console.log(`✅ [CLIENT] Job ${jobData.status}: ${jobId}`);
+          console.log(`   Total polls: ${pollCount}`);
+          console.log(`   Final progress: ${jobData.progress}%`);
+          console.log(`   Streaming logs: ${jobData.streamingLogs?.length || 0} events`);
+          console.log('='.repeat(60));
+          
+          isPolling = false;
+          
+          // ローカルストレージから削除
+          const savedJobs = JSON.parse(localStorage.getItem('activeJobs') || '[]');
+          const updatedJobs = savedJobs.filter((id: string) => id !== jobId);
+          localStorage.setItem('activeJobs', JSON.stringify(updatedJobs));
+          console.log(`💾 [CLIENT] Removed from localStorage`);
+        }
       } catch (err: any) {
         console.error('='.repeat(60));
-        console.error(`❌ [CLIENT] Error fetching initial job state`);
+        console.error(`❌ [CLIENT] Error fetching job status`);
         console.error(`   Error: ${err.message}`);
         console.error('='.repeat(60));
-        // エラーが出てもSSEで取得するため、続行
-      }
-    };
-
-    fetchInitialJobState();
-
-    // Server-Sent Eventsで状態をリアルタイム更新
-    console.log(`🔌 [CLIENT] Connecting to SSE: /api/jobs/stream?jobId=${jobId}`);
-    const eventSource = new EventSource(`/api/jobs/stream?jobId=${jobId}`);
-    
-    let sseMessageCount = 0;
-
-    eventSource.onmessage = (event) => {
-      sseMessageCount++;
-      const data = JSON.parse(event.data);
-      
-      // 10メッセージごとにログ
-      if (sseMessageCount % 10 === 0) {
-        console.log(`📥 [CLIENT SSE] Message ${sseMessageCount} received`);
-        console.log(`   Status: ${data.status}, Progress: ${data.progress}%`);
-        console.log(`   Streaming logs: ${data.streamingLogs?.length || 0} events`);
-      }
-      
-      if (data.error) {
-        // "Job not found" エラーは一時的なものなので、少し待ってから再試行
-        if (data.error === 'Job not found') {
-          console.log(`⏳ [CLIENT SSE] Job not found yet, will retry...`);
-          // SSEは自動的にリトライするので、エラー表示しない
-          return;
+        
+        // 5回連続でエラーが出たら停止
+        if (pollCount > 5) {
+          setError(`Failed to fetch job status: ${err.message}`);
+          isPolling = false;
         }
-        
-        console.error(`❌ [CLIENT SSE] Error received: ${data.error}`);
-        setError(data.error);
-        eventSource.close();
-        return;
-      }
-
-      setJob((prev) => ({
-        id: jobId,
-        type: prev?.type || data.type || 'workflow',
-        createdAt: prev?.createdAt || data.createdAt || new Date().toISOString(),
-        ...data,
-      }));
-
-      setLoading(false);
-
-      // 完了したら接続を閉じる
-      if (data.status === 'completed' || data.status === 'failed') {
-        console.log('='.repeat(60));
-        console.log(`✅ [CLIENT SSE] Job ${data.status}: ${jobId}`);
-        console.log(`   Total SSE messages: ${sseMessageCount}`);
-        console.log(`   Final progress: ${data.progress}%`);
-        console.log(`   Streaming logs: ${data.streamingLogs?.length || 0} events`);
-        console.log('='.repeat(60));
-        
-        eventSource.close();
-        
-        // ローカルストレージから削除
-        const savedJobs = JSON.parse(localStorage.getItem('activeJobs') || '[]');
-        const updatedJobs = savedJobs.filter((id: string) => id !== jobId);
-        localStorage.setItem('activeJobs', JSON.stringify(updatedJobs));
-        console.log(`💾 [CLIENT] Removed from localStorage`);
       }
     };
 
-    eventSource.onerror = (err) => {
-      console.log('='.repeat(60));
-      console.error('❌ [CLIENT SSE] Connection error');
-      console.error('   Error object:', err);
-      console.error(`   EventSource readyState: ${eventSource.readyState}`);
-      console.error(`   0=CONNECTING, 1=OPEN, 2=CLOSED`);
-      console.error(`   Messages received before error: ${sseMessageCount}`);
-      console.error(`   Current job state:`, job);
-      console.log('='.repeat(60));
-      
-      // readyState が CONNECTING (0) の場合は、まだ接続試行中
-      // CLOSED (2) の場合は完全に切断
-      if (eventSource.readyState === EventSource.CLOSED) {
-        console.warn('⚠️  [CLIENT SSE] Connection CLOSED. Will not reconnect automatically.');
-        
-        // ジョブが完了していない場合はエラー表示
-        if (job && job.status !== 'completed' && job.status !== 'failed') {
-          setError('Connection lost. The job may still be running on the server. Refresh to reconnect.');
-        }
-        
-        eventSource.close();
-        setLoading(false);
-      } else {
-        console.log('⏳ [CLIENT SSE] Connection error, but may reconnect...');
-      }
-    };
+    // 初回実行
+    fetchJobStatus();
 
+    // 5秒ごとにポーリング
+    const pollInterval = setInterval(fetchJobStatus, 5000);
+
+    // クリーンアップ
     return () => {
-      eventSource.close();
+      isPolling = false;
+      clearInterval(pollInterval);
     };
   }, [jobId]);
 
@@ -181,7 +153,7 @@ export default function JobDetailPage() {
           <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto"></div>
           <p className="mt-4 text-gray-700 font-semibold">Loading job status...</p>
           <p className="mt-2 text-sm text-gray-600">Job ID: {jobId}</p>
-          <p className="mt-1 text-xs text-gray-500">Connecting to server...</p>
+          <p className="mt-1 text-xs text-gray-500">Fetching from server...</p>
         </div>
       </div>
     );
@@ -194,12 +166,12 @@ export default function JobDetailPage() {
           <div className="text-red-700 text-xl font-bold mb-4">⚠️ Connection Error</div>
           <p className="text-gray-800 font-medium mb-4">{error}</p>
           
-          {error.includes('Connection lost') && (
+          {error.includes('Failed to fetch') && (
             <div className="bg-yellow-50 border border-yellow-300 rounded p-3 mb-4 text-sm">
               <p className="text-gray-800 font-semibold mb-2">💡 What to do:</p>
               <ul className="text-gray-700 list-disc list-inside space-y-1">
                 <li>The job may still be running on the server</li>
-                <li>Click "Refresh" to reconnect</li>
+                <li>Click "Refresh" to reload</li>
                 <li>Check terminal logs for details</li>
               </ul>
             </div>
@@ -343,7 +315,7 @@ export default function JobDetailPage() {
                           <span className="text-yellow-300 font-semibold">[{log.event}]</span>
                           {' '}
                           {log.data?.data?.title && (
-                            <span className="text-cyan-300">"{log.data.data.title}"</span>
+                            <span className="text-cyan-300">&quot;{log.data.data.title}&quot;</span>
                           )}
                           {log.data?.data?.text && (
                             <span className="text-white"> → {log.data.data.text.substring(0, 80)}{log.data.data.text.length > 80 ? '...' : ''}</span>
@@ -363,7 +335,7 @@ export default function JobDetailPage() {
                       Total events: <span className="font-bold text-gray-900">{job.streamingLogs.length}</span>
                       {job.status === 'processing' && (
                         <span className="text-blue-600 font-semibold ml-2">
-                          ● Updating in real-time...
+                          ● Updating every 5 seconds...
                         </span>
                       )}
                       {(job.status === 'completed' || job.status === 'failed') && (
