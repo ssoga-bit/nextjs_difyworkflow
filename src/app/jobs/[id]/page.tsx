@@ -250,11 +250,11 @@ export default function JobDetailPage() {
               </div>
 
               {/* ストリーミングログ表示 */}
-              {job.streamingLogs && job.streamingLogs.length > 0 && (
+              {job.streamingLogs && (job.streamingLogs as any[]).length > 0 && (
                 <div className="border-2 border-blue-300 rounded-lg p-4 bg-blue-50">
                   <div className="flex items-center justify-between mb-2">
                     <label className="text-base font-bold text-gray-900">
-                      🔄 Streaming Logs ({job.streamingLogs.length} events)
+                      🔄 Streaming Logs ({(job.streamingLogs as any[]).length} events)
                     </label>
                     <div className="flex items-center gap-3">
                       <label className="flex items-center text-xs text-gray-700 cursor-pointer font-semibold">
@@ -272,7 +272,7 @@ export default function JobDetailPage() {
                     ref={logContainerRef}
                     className="mt-2 bg-gray-900 rounded-lg p-4 max-h-[500px] overflow-y-auto text-xs font-mono shadow-inner"
                   >
-                    {job.streamingLogs.map((log, index) => {
+                    {(job.streamingLogs as any[]).map((log, index) => {
                       const eventType = log.event;
                       let eventColor = 'text-green-400';
                       let icon = '▶';
